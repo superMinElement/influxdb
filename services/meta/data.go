@@ -788,6 +788,32 @@ func (data *Data) hasAdminUser() bool {
 // opts provides options to possibly rename the Database or Retention Policy, or change the Replication Factor.
 func (data *Data) ImportData(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string) (map[uint64]uint64, error) {
 
+	if backupDBName == "" {
+		// if no backupDBName then we'll try to import all the DB's.  If one of them fails, we'll mark the whole
+		// operation a failure and return an error.
+		shardIDMap := make(map[uint64]uint64)
+		for _, dbi := range other.Databases {
+			if dbi.Name == "_internal" {
+				continue
+			}
+			tmpMap, err := data.ImportOneDB(other, dbi.Name, "", "", "")
+			if err != nil {
+				return shardIDMap, err
+			}
+
+			for k, v := range tmpMap {
+				shardIDMap[k] = v
+			}
+		}
+		return shardIDMap, nil
+	}
+
+	return data.ImportOneDB(other, backupDBName, restoreDBName, backupRPName, restoreRPName)
+}
+
+// ImportOneDB imports a single database/rp from an external metadata object, renaming them if new names are provided.
+func (data *Data) ImportOneDB(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string) (map[uint64]uint64, error) {
+
 	shardIDMap := make(map[uint64]uint64)
 
 	dbImport := other.Database(backupDBName)
