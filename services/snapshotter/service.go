@@ -364,7 +364,7 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	d := json.NewDecoder(conn)
 
 	if err := d.Decode(&r); err != nil {
-		return r, []byte{}, err
+		return r, nil, err
 	}
 
 	bits := make([]byte, r.UploadSize+1)
@@ -372,14 +372,6 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 	if r.UploadSize > 0 {
 
 		remainder := d.Buffered()
-
-		//// no time to investigate.  It seems the JSON encoder puts one extra byte on the stream,
-		//// but the decoder does not consume it.  so we eat a byte here and then everything works.
-		//onebyte := bufio.NewReader(remainder)
-		//_, err := onebyte.ReadByte()
-		//if err != nil {
-		//	return r, bits, err
-		//}
 
 		n, err := remainder.Read(bits)
 		if err != nil && err != io.EOF {
@@ -395,6 +387,7 @@ func (s *Service) readRequest(conn net.Conn) (Request, []byte, error) {
 		if err != nil && err != io.EOF {
 			return r, bits, err
 		}
+		// the JSON encoder on the client side seems to write an extra byte, so trim that off the front.
 		return r, bits[1:], nil
 	}
 

@@ -788,51 +788,54 @@ func (data *Data) hasAdminUser() bool {
 // opts provides options to possibly rename the Database or Retention Policy, or change the Replication Factor.
 func (data *Data) ImportData(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string) (map[uint64]uint64, error) {
 
-	if backupDBName == "" {
-		// if no backupDBName then we'll try to import all the DB's.  If one of them fails, we'll mark the whole
-		// operation a failure and return an error.
-		shardIDMap := make(map[uint64]uint64)
-		for _, dbi := range other.Databases {
-			if dbi.Name == "_internal" {
-				continue
-			}
-			tmpMap, err := data.ImportOneDB(other, dbi.Name, "", "", "")
-			if err != nil {
-				return shardIDMap, err
-			}
-
-			for k, v := range tmpMap {
-				shardIDMap[k] = v
-			}
+	shardIDMap := make(map[uint64]uint64)
+	if backupDBName != "" {
+		err := data.importOneDB(other, backupDBName, restoreDBName, backupRPName, restoreRPName, shardIDMap)
+		if err != nil {
+			return nil, err
 		}
 		return shardIDMap, nil
 	}
 
-	return data.ImportOneDB(other, backupDBName, restoreDBName, backupRPName, restoreRPName)
+	// if no backupDBName then we'll try to import all the DB's.  If one of them fails, we'll mark the whole
+	// operation a failure and return an error.
+
+	for _, dbi := range other.Databases {
+		if dbi.Name == "_internal" {
+			continue
+		}
+		err := data.importOneDB(other, dbi.Name, "", "", "", shardIDMap)
+		if err != nil {
+			return nil, err
+		}
+
+	}
+	return shardIDMap, nil
 }
 
-// ImportOneDB imports a single database/rp from an external metadata object, renaming them if new names are provided.
-func (data *Data) ImportOneDB(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string) (map[uint64]uint64, error) {
+// importOneDB imports a single database/rp from an external metadata object, renaming them if new names are provided.
+func (data *Data) importOneDB(other Data, backupDBName, restoreDBName, backupRPName, restoreRPName string, shardIDMap map[uint64]uint64) error {
 
-	shardIDMap := make(map[uint64]uint64)
-
-	dbImport := other.Database(backupDBName)
-	if dbImport == nil {
-		return shardIDMap, fmt.Errorf("imported metadata does not have datbase named %s", backupDBName)
+	dbPtr := other.Database(backupDBName)
+	if dbPtr == nil {
+		return fmt.Errorf("imported metadata does not have datbase named %s", backupDBName)
 	}
+
+	dbImport := dbPtr.clone()
 
 	if restoreDBName == "" {
 		restoreDBName = backupDBName
+	}
+
+	if data.Database(restoreDBName) != nil {
+		return errors.New("database already exists")
 	}
 
 	// change the names if we want/need to
 	dbImport.Name = restoreDBName
 
 	if backupRPName != "" {
-		rpImport, err := other.RetentionPolicy(restoreDBName, backupRPName)
-		if err != nil {
-			return shardIDMap, err
-		}
+		rpImport := dbImport.RetentionPolicy(backupRPName)
 
 		if rpImport != nil {
 			if restoreRPName == "" {
@@ -841,12 +844,9 @@ func (data *Data) ImportOneDB(other Data, backupDBName, restoreDBName, backupRPN
 			rpImport.Name = restoreRPName
 			dbImport.RetentionPolicies = []RetentionPolicyInfo{*rpImport}
 		} else {
-			return shardIDMap, fmt.Errorf("retention Policy not found in meta backup: %s", backupRPName)
+			return fmt.Errorf("retention Policy not found in meta backup: %s.%s", backupDBName, backupRPName)
 		}
 
-	}
-	if data.Database(restoreDBName) != nil {
-		return shardIDMap, errors.New("database already exists")
 	}
 
 	for _, rpImport := range dbImport.RetentionPolicies {
@@ -864,9 +864,9 @@ func (data *Data) ImportOneDB(other Data, backupDBName, restoreDBName, backupRPN
 		}
 	}
 
-	data.Databases = append(data.Databases, *dbImport)
+	data.Databases = append(data.Databases, dbImport)
 
-	return shardIDMap, nil
+	return nil
 }
 
 // NodeInfo represents information about a single node in the cluster.
