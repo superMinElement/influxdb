@@ -20,6 +20,7 @@
 - [#9163](https://github.com/influxdata/influxdb/pull/9163): Fix race condition in the merge iterator close method.
 - [#9144](https://github.com/influxdata/influxdb/issues/9144): Fix query compilation so multiple nested distinct calls is allowable
 - [#8789](https://github.com/influxdata/influxdb/issues/8789): Fix CLI to allow quoted database names in use statement
+- [#9216](https://github.com/influxdata/influxdb/issues/9216): Prevent a panic when a query simultaneously finishes and is killed at the same time.
 
 ## v1.4.2 [2017-11-15]
 
