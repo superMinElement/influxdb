@@ -18,14 +18,11 @@ import (
 
 	"compress/gzip"
 	"encoding/json"
-	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/cmd/influxd/backup_util"
 	tarstream "github.com/influxdata/influxdb/pkg/tar"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/snapshotter"
 )
-
-//go:generate protoc --gogo_out=. data.proto
 
 // Command represents the program execution for "influxd restore".
 type Command struct {
@@ -105,10 +102,12 @@ func (cmd *Command) runOnline() error {
 	err := cmd.updateMetaLive()
 	if err != nil {
 		cmd.StderrLogger.Printf("error updating meta: %v", err)
+		return err
 	}
 	err = cmd.uploadShardsLive()
 	if err != nil {
 		cmd.StderrLogger.Printf("error updating shards: %v", err)
+		return err
 	}
 	return nil
 }
@@ -159,19 +158,21 @@ func (cmd *Command) parseFlags(args []string) error {
 			cmd.restoreRetention = cmd.backupRetention
 		}
 
-		if filepath.Ext(cmd.backupFilesPath) != ".manifest" {
-			return fmt.Errorf("when using -enterprise, must provide path to a manifest file")
-		}
-		f, err := os.Open(cmd.backupFilesPath)
-		if err != nil {
-			return err
-		}
+		if cmd.enterprise {
+			if filepath.Ext(cmd.backupFilesPath) != ".manifest" {
+				return fmt.Errorf("when using -enterprise, must provide path to a manifest file")
+			}
+			f, err := os.Open(cmd.backupFilesPath)
+			if err != nil {
+				return err
+			}
 
-		if err := json.NewDecoder(f).Decode(&cmd.manifest); err != nil {
-			return fmt.Errorf("read manifest: %v", err)
+			if err := json.NewDecoder(f).Decode(&cmd.manifest); err != nil {
+				return fmt.Errorf("read manifest: %v", err)
+			}
+			f.Close()
+			cmd.backupFilesPath = filepath.Dir(cmd.backupFilesPath)
 		}
-		f.Close()
-		cmd.backupFilesPath = filepath.Dir(cmd.backupFilesPath)
 	} else {
 		// validate the arguments
 		if cmd.metadir == "" && cmd.destinationDatabase == "" {
@@ -312,13 +313,10 @@ func (cmd *Command) updateMetaLive() error {
 		if cmd.manifest.Platform == "OSS" {
 			metaBytes = fileBytes
 		} else if cmd.manifest.Platform == "ENT" || cmd.manifest.Platform == "" {
-			// allow "" to be compatible with pre-1.5 Enterprise backups
-			var pb EnterpriseData
-			if err := proto.Unmarshal(fileBytes, &pb); err != nil {
-				return err
-			}
+			var ep backup_util.EnterprisePacker
+			ep.UnmarshalBinary(fileBytes)
 
-			metaBytes = pb.GetData()
+			metaBytes = ep.Data
 		} else {
 			return fmt.Errorf("Unrecognized backup platform: %s", cmd.manifest.Platform)
 		}
