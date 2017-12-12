@@ -185,7 +185,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	// now backup
 	bCmd := backup.NewCommand()
 
-	if err := cmd.Run("-enterprise", "-host", hostAddress, enterpriseBackupDir); err != nil {
+	if err := bCmd.Run("-enterprise", "-host", hostAddress, enterpriseBackupDir); err != nil {
 		t.Fatalf("error backing up: %s, hostAddress: %s", err.Error(), hostAddress)
 	}
 	manifestFile = bCmd.BackupFiles[len(bCmd.BackupFiles)-1]
