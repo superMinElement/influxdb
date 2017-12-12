@@ -198,6 +198,9 @@ func TestServer_BackupAndRestore(t *testing.T) {
 	// 3. enterprise should be the same as the non-enterprise live restore
 	cmd.Run("-host", hostAddress, "-enterprise", filepath.Join(enterpriseBackupDir, manifestFile))
 
+	// wait for the import to finish, and unlock the shard engine.
+	time.Sleep(time.Second)
+
 	res, err = s.Query(`select * from "mydbbak"."forever"."myseries"`)
 	if err != nil {
 		t.Fatalf("error querying: %s", err.Error())
