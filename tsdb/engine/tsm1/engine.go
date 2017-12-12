@@ -809,7 +809,7 @@ func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
-	return intar.StreamFunc(w, path, basePath, e.timeStampFilterTarFile(start, end))
+	return intar.Stream(w, path, basePath, e.timeStampFilterTarFile(start, end))
 }
 
 func (e *Engine) filterFileToBackup(r *TSMReader, fi os.FileInfo, shardRelativePath, fullPath string, start, end int64, tw *tar.Writer) error {
