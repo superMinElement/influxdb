@@ -46,7 +46,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 		}
 
 		// wait for the snapshot to write
-		time.Sleep(time.Second)
+		time.Sleep(10 * time.Second)
 
 		res, err := s.Query(`select * from "mydb"."forever"."myseries"`)
 		if err != nil {
