@@ -808,7 +808,7 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		fi, err := os.Stat(filepath.Join(path, file))
 		if err != nil {
 			return err
-		} else if !fi.ModTime().After(since) {
+		} else if !fi.ModTime().After(since) || strings.HasSuffix(file, ".tmp") {
 			continue
 		}
 		filtered = append(filtered, file)
